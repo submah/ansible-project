@@ -1,0 +1,4 @@
+---
+dependencies:
+  - role: ansible-role-openjdk
+    path: /home/sesa477972/ansible-project/
