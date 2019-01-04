@@ -1,0 +1,8 @@
+---
+dependencies:
+  - role: ansible-role-httpd
+    path: ../../
+  - role: ansible-role-php
+    path: ../..
+  - role: ansible-role-mysql
+    path : ../.. 

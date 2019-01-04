@@ -1,0 +1,60 @@
+---
+  - name: Disabling SELinux
+    selinux:
+        state: disabled
+
+  - name: Downloading Matomo
+    get_url:
+      url: https://builds.piwik.org/piwik.zip
+      dest: /opt
+
+  - name: Unlzipping Matomo
+    unarchive:
+      src: /opt/piwik.zip
+      dest: /var/www/html
+#    shell: unzip /opt/piwik.zip -d /var/www/html
+
+  - name: Granting permission to Apache
+    shell: chown -R apache:apache /var/www/html/piwik
+
+  - name: Configuring php.ini
+    lineinfile:
+      path: /etc/php.ini
+      regexp: '^;always_populate_raw_post_data = -1'
+      line: 'always_populate_raw_post_data = -1'
+
+  - name: Adding GeoIP (Php)
+    get_url:
+      url: http://geolite.maxmind.com/download/geoip/database/GeoLiteCity.dat.gz
+      dest: /var/www/html/piwik/misc
+
+  - name: Unzipping .dat file
+    shell: gzip -d /var/www/html/piwik/misc/GeoLiteCity.dat.gz
+
+  - name: Rename .dat file
+    shell: mv /var/www/html/piwik/misc/GeoLiteCity.dat /var/www/html/piwik/misc/GeoIPCity.dat
+
+  - name: Checking SELinux status
+    command: getenforce
+    register: sestatus
+
+  - name:  SELinux setting for apache user to get access on httpd and db connection
+    seboolean:
+      name: "{{ item }}"
+      state: yes
+      persistent: yes
+    with_items:
+      - httpd_unified
+      - httpd_can_network_connect_db
+    when: '"Enabled" in sestatus.stdout'
+#    shell: setsebool -P httpd_unified on
+#    shell: setsebool -P httpd_can_network_connect_db on
+
+  - name: Executing necessary mysql query for Piwik
+    command: >
+        mysql --user=root --host=localhost --password=root --execute="CREATE DATABASE piwik_data;CREATE USER 'piwik'@'localhost' IDENTIFIED BY 'piwik';GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, CREATE TEMPORARY TABLES, LOCK TABLES ON piwik_data.* TO 'piwik'@'localhost';FLUSH PRIVILEGES;"
+    register: dbstatus
+    failed_when: dbstatus.rc == 2
+
+  - name: Enabling the Apache service
+    service: name=httpd state=started enabled=yes
